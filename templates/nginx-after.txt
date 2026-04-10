@@ -3,7 +3,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <script>
 (function(){
   // Canvas mesh gradient background
@@ -307,113 +306,46 @@
   }
 
   // ── Ableton ASD parser ────────────────────────────────────────
-  // Ableton ASD: proprietary binary format (not XML/gzip).
-  // Ref: github.com/DBraun/AbletonParsing
-  function parseASD(buf){
-    var bytes=new Uint8Array(buf),dv=new DataView(buf);
-    function findSeq(pat,from){
-      from=from||0;
-      outer:for(var i=from;i<=bytes.length-pat.length;i++){
-        for(var j=0;j<pat.length;j++) if(bytes[i+j]!==pat[j]) continue outer;
-        return i;
-      }
-      return -1;
-    }
-    function enc(s){var a=[];for(var i=0;i<s.length;i++)a.push(s.charCodeAt(i));return a;}
-    var B_SOVL=enc('SampleOverViewLevel'),B_SD=enc('SampleData'),B_WM=enc('WarpMarker');
-    var dataIdx,version;
-    var i1=findSeq(B_SOVL,0);
-    if(i1>=0){var i2=findSeq(B_SOVL,i1+1);if(i2>=0){dataIdx=i2+90;version='Live 10+';}}
-    if(dataIdx===undefined){
-      i1=findSeq(B_SD,0);
-      if(i1>=0){var i2b=findSeq(B_SD,i1+1);if(i2b>=0){dataIdx=i2b+2712;version='Live 9';}}
-    }
-    if(dataIdx===undefined||dataIdx+52>buf.byteLength) return{ok:false,error:'Unrecognized ASD format'};
-    try{
-      var idx=dataIdx;
-      var loop_start=dv.getFloat64(idx,true);idx+=8;
-      var loop_end=dv.getFloat64(idx,true);idx+=8;
-      var sample_offset=dv.getFloat64(idx,true);idx+=8;
-      idx+=8+8; // hidden_loop_start, hidden_loop_end
-      var end_marker=dv.getFloat64(idx,true);idx+=8;
-      idx+=3;
-      var warp_on=bytes[idx]!==0;
-      var start_marker=loop_start+sample_offset;
-      // Warp markers
-      var markers=[],wmPos=findSeq(B_WM,0);
-      while(wmPos>=0){
-        var nxt=findSeq(B_WM,wmPos+1);
-        if(nxt<0) break;
-        var di=nxt+14;
-        if(di+16>buf.byteLength) break;
-        var sec=dv.getFloat64(di,true),beat=dv.getFloat64(di+8,true);
-        if(isFinite(sec)&&isFinite(beat)&&sec>=0&&Math.abs(beat)<1e9) markers.push({sec:sec,beat:beat});
-        wmPos=nxt+30;
-      }
-      var bpm=null;
-      if(markers.length>=2){
-        var m0=markers[0],mN=markers[markers.length-1];
-        if(mN.sec>m0.sec) bpm=Math.round(((mN.beat-m0.beat)/(mN.sec-m0.sec))*6000)/100;
-      }
-      return{ok:true,version:version,warp_on:warp_on,loop_start:loop_start,loop_end:loop_end,
-        start_marker:start_marker,end_marker:end_marker,markers:markers,bpm:bpm};
-    }catch(e){return{ok:false,error:e.message};}
-  }
-  function renderASD(asd,name,href){
-    var dname=esc(name.replace(/\.asd$/i,''));
-    var rows=[
-      ['Sample file',dname],
-      ['BPM',asd.bpm!=null?'<span style="color:var(--accent3);font-weight:700">'+asd.bpm.toFixed(2)+'</span>':'—'],
-      ['Warped',asd.warp_on?'<span style="color:#4ade80">Yes</span>':'No'],
-      ['Loop start',isFinite(asd.loop_start)?asd.loop_start.toFixed(4)+' <span style="color:var(--muted);font-size:.68rem">beat</span>':'—'],
-      ['Loop end',isFinite(asd.loop_end)?asd.loop_end.toFixed(4)+' <span style="color:var(--muted);font-size:.68rem">beat</span>':'—'],
-      ['Warp markers',asd.markers.length],
-      ['Format',esc(asd.version||'Unknown')],
-    ];
-    var kvHtml=rows.map(function(r){return'<div class="pe-kv"><div class="pe-k">'+r[0]+'</div><div class="pe-v">'+r[1]+'</div></div>';}).join('');
-    var markerRows=asd.markers.slice(0,64).map(function(m,i){
-      return'<tr>'+
-        '<td style="font-family:var(--mono);font-size:.68rem;color:var(--muted);padding:.35rem 1.25rem">'+(i+1)+'</td>'+
-        '<td style="font-family:var(--mono);font-size:.7rem;color:var(--text);padding:.35rem .5rem">'+m.sec.toFixed(4)+'<span style="color:var(--muted);font-size:.62rem">s</span></td>'+
-        '<td style="font-family:var(--mono);font-size:.7rem;color:var(--accent3);padding:.35rem .5rem">'+m.beat.toFixed(4)+'<span style="color:var(--muted);font-size:.62rem"> beat</span></td>'+
-        '</tr>';
-    }).join('');
-    var markersSection=markerRows?
-      '<div class="pe-section-hdr">Warp Markers</div>'+
-      '<table class="pe-sec-tbl" style="width:100%"><thead><tr>'+
-      '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem 1.25rem;text-transform:uppercase;letter-spacing:.08em">#</th>'+
-      '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Sec</th>'+
-      '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Beat</th>'+
-      '</tr></thead><tbody>'+markerRows+'</tbody></table>':'';
+  // Ableton ASD: proprietary binary — just detect it and show linked sample name
+  function renderASD(name,size,href){
+    var sampleName=name.replace(/\.asd$/i,'');
     return'<div class="pe-wrap">'+
       '<div class="pe-hero">'+
       '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent3);flex-shrink:0"><path d="M9 19V6l12-3v13" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg>'+
       '<div><div class="pe-hero-name">'+esc(name)+'</div>'+
-      '<div class="pe-hero-sub">Ableton Sample Data'+(asd.bpm!=null?' &nbsp;·&nbsp; <span style="color:var(--accent3)">'+asd.bpm.toFixed(2)+' BPM</span>':'')+'</div></div>'+
+      '<div class="pe-hero-sub">Ableton Live analysis data</div></div>'+
       '</div>'+
-      '<div class="pe-grid">'+kvHtml+'</div>'+
-      markersSection+
+      '<div class="pe-grid">'+
+      '<div class="pe-kv"><div class="pe-k">Sample file</div><div class="pe-v">'+esc(sampleName)+'</div></div>'+
+      '<div class="pe-kv"><div class="pe-k">Size</div><div class="pe-v">'+esc(size)+'</div></div>'+
+      '</div>'+
+      '<div style="padding:.6rem 1.25rem;font-size:.72rem;color:var(--muted);border-bottom:1px solid var(--border)">Contains waveform overview, onset detection, and warp analysis data used by Ableton Live.</div>'+
       '<div style="padding:.75rem 1.25rem"><a class="hx-dl" href="'+esc(href)+'">&#8595; Download</a></div>'+
     '</div>';
   }
 
   // ── Parse listing ─────────────────────────────────────────────
-  var entries=[],entryMap={};
+  var entries=[],entryMap={},asdMap={};
   pre.innerHTML.split('\n').forEach(function(line){
     var m=line.match(/<a href="([^"]+)">([^<]*)<\/a>\s+(\S+)\s+(\S+)\s+(\S+)/);
     if(!m) return;
     var rawName=m[1].endsWith('/')?m[1].replace(/\/$/,'').split('/').pop():m[1].split('/').pop();
     var realName=decodeURIComponent(rawName);
     var e={href:m[1],name:realName,date:m[3],time:m[4],size:m[5],isDir:m[1].endsWith('/'),isParent:m[1]==='../'};
+    if(ext(realName)==='asd'){e.isAsd=true;asdMap[realName.replace(/\.asd$/i,'')]=e;}
     entries.push(e);
     entryMap[e.name]=e;
   });
+  // Tag audio entries that have a matching .asd
+  entries.forEach(function(e){if(asdMap[e.name])e.hasAsd=true;});
 
   function badge(e){
     if(e.isParent)return'';if(e.isDir)return'<span class="bl-badge b-dir">dir</span>';
-    var x=ext(e.name),map={efi:'EFI',elf:'ELF',axf:'ELF',so:'ELF',ko:'ELF',hex:'iHEX',ihex:'iHEX',ihx:'iHEX',asd:'ASD',kpxe:'kPXE',pxe:'PXE',ipxe:'iPXE',lkrn:'LKRN',md:'MD',txt:'TXT',cfg:'CFG',mp3:'MP3',wav:'WAV',ogg:'OGG',flac:'FLAC',aac:'AAC',mp4:'MP4',webm:'WEBM',mov:'MOV',mkv:'MKV'};
-    var cls={efi:'b-efi',elf:'b-elf',axf:'b-elf',so:'b-elf',ko:'b-elf',hex:'b-hex',ihex:'b-hex',ihx:'b-hex',asd:'b-asd',kpxe:'b-kpxe',pxe:'b-pxe',ipxe:'b-ipxe',lkrn:'b-lkrn',jpg:'b-img',jpeg:'b-img',png:'b-img',gif:'b-img',webp:'b-img',svg:'b-img',avif:'b-img'};
-    var tb=map[x]?'<span class="bl-badge '+(cls[x]||'b-txt')+'">'+map[x]+'</span>':'';var bpm=AUDIO.includes(x)?bpmFromName(e.name):null;var bb=bpm?'<span class="bl-badge b-bpm">'+bpm+' BPM</span>':'';return tb+bb;
+    var x=ext(e.name),map={efi:'EFI',elf:'ELF',axf:'ELF',so:'ELF',ko:'ELF',hex:'iHEX',ihex:'iHEX',ihx:'iHEX',kpxe:'kPXE',pxe:'PXE',ipxe:'iPXE',lkrn:'LKRN',md:'MD',txt:'TXT',cfg:'CFG',mp3:'MP3',wav:'WAV',ogg:'OGG',flac:'FLAC',aac:'AAC',mp4:'MP4',webm:'WEBM',mov:'MOV',mkv:'MKV'};
+    var cls={efi:'b-efi',elf:'b-elf',axf:'b-elf',so:'b-elf',ko:'b-elf',hex:'b-hex',ihex:'b-hex',ihx:'b-hex',kpxe:'b-kpxe',pxe:'b-pxe',ipxe:'b-ipxe',lkrn:'b-lkrn',jpg:'b-img',jpeg:'b-img',png:'b-img',gif:'b-img',webp:'b-img',svg:'b-img',avif:'b-img'};
+    var tb=map[x]?'<span class="bl-badge '+(cls[x]||'b-txt')+'">'+map[x]+'</span>':'';
+    if(e.hasAsd) tb+='<span class="bl-badge b-asd">ASD</span>';
+    var bpm=AUDIO.includes(x)?bpmFromName(e.name):null;var bb=bpm?'<span class="bl-badge b-bpm">'+bpm+' BPM</span>':'';return tb+bb;
   }
   function icon(e){
     var c='currentColor',x=ext(e.name);
@@ -430,6 +362,7 @@
   var fileCount=0,readmeEntry=null,rowMap={};
 
   entries.forEach(function(e,i){
+    if(e.isAsd) return; // hide .asd from listing (still in entries for ZIP)
     var tr=document.createElement('tr');
     tr.className=e.isParent?'is-parent':'';
     tr.style.animationDelay=(i*25)+'ms';tr.style.cursor='pointer';
@@ -875,13 +808,7 @@
     }
 
     if(ASD_EXT.includes(x)){
-      loading('Parsing ASD…');
-      fetch(e.href).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer();})
-        .then(function(buf){
-          var asd=parseASD(buf);
-          setContent(asd.ok?renderASD(asd,e.name,e.href):
-            '<div class="bin-info"><div class="bin-name">'+esc(e.name)+'</div><div style="color:var(--muted);font-size:.8rem;padding:.5rem 0">'+esc(asd.error||'Parse error')+'</div><a class="bin-dl" href="'+esc(e.href)+'">&#8595; Download</a></div>');
-        }).catch(function(err){setContent('<div style="padding:1.5rem;color:var(--muted);text-align:center;font-size:.8rem">'+esc(err.message)+'</div>');});
+      setContent(renderASD(e.name,e.size,e.href));
       return;
     }
 
@@ -983,7 +910,7 @@
     q=q.toLowerCase().trim();
     var visible=0;
     entries.forEach(function(e){
-      if(e.isParent) return;
+      if(e.isParent||e.isAsd) return;
       var tr=rowMap[e.name]||null;
       var gc=gcMap[e.name]||null;
       var cached=id3Cache[e.name]||{};
@@ -1012,7 +939,7 @@
     var notePhIcon='<svg class="gc-art-ph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="18" r="3"/><circle cx="6" cy="21" r="3"/><path d="M18 18V7l-12 3v11"/></svg>';
     var filePhIcon='<svg class="gc-art-ph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V6L9 1z" stroke-linecap="round"/><path d="M9 1v5h5" stroke-linecap="round"/></svg>';
     entries.forEach(function(e){
-      if(e.isParent) return;
+      if(e.isParent||e.isAsd) return;
       var card=document.createElement('div');
       if(e.isDir){
         var dirPhIcon='<svg class="gc-art-ph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1193,7 +1120,10 @@
       var btn=this;
       btn.disabled=true;btn.textContent='Zipping…';
       var zip=new JSZip();
-      var promises=Array.from(selectedFiles).map(function(name){
+      // Auto-include matching .asd files for selected audio files
+      var filesToZip=new Set(selectedFiles);
+      selectedFiles.forEach(function(name){var a=asdMap[name];if(a)filesToZip.add(a.name);});
+      var promises=Array.from(filesToZip).map(function(name){
         var e=entryMap[name];if(!e) return Promise.resolve();
         return fetch(e.href).then(function(r){return r.arrayBuffer();}).then(function(buf){zip.file(name,buf);});
       });
