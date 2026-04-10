@@ -223,7 +223,6 @@ body.light .pdf-pages{background:rgba(0,0,0,.06)}
   #bl{padding:1rem 1rem 3rem}
 }
 </style>
-<script>try{if(document.documentElement.classList.contains('theme-light'))document.body.classList.add('light');}catch(e){}</script>
 <div id="bl">
   <div class="bl-hdr">
     <svg class="bl-logo" viewBox="0 0 44 44" fill="none">

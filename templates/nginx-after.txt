@@ -3,11 +3,25 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
-<script>window.pdfjsLoaded=new Promise(function(ok){var s=document.querySelector('script[type=module]');s.onload=function(){import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs').then(function(m){m.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';window.pdfjsLib=m;ok();});};});</script>
+<script>
+window.pdfjsLoaded=new Promise(function(ok,fail){
+  try{
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=function(){
+      try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';ok();}
+      catch(e){fail(e);}
+    };
+    s.onerror=function(){fail(new Error('PDF.js failed to load'));};
+    document.head.appendChild(s);
+  }catch(e){fail(e);}
+});
+</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 (function(){
+  // Apply saved theme immediately
+  try{if(localStorage.getItem('theme')==='light')document.body.classList.add('light');}catch(e){}
   // Animated constellation network background
   (function(){
     var cv=document.createElement('canvas');
