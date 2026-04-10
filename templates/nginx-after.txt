@@ -382,12 +382,12 @@
     var tr=document.createElement('tr');
     tr.className=e.isParent?'is-parent':'';
     tr.style.animationDelay=(i*25)+'ms';tr.style.cursor='pointer';
-    var cbHtml=(!e.isDir&&!e.isParent)?'<td class="bl-cb-col"><input type="checkbox" class="bl-cb" data-name="'+esc(e.name)+'"/></td>':'<td class="bl-cb-col"></td>';
+    var cbHtml=(!e.isParent)?'<td class="bl-cb-col"><input type="checkbox" class="bl-cb" data-name="'+esc(e.name)+'"/></td>':'<td class="bl-cb-col"></td>';
     tr.innerHTML=cbHtml+'<td><div class="bl-name">'+icon(e)+'<a href="'+e.href+'" class="'+(e.isDir||e.isParent?'dir':'')+'" title="'+esc(e.name)+'">'+esc(e.name)+'</a>'+badge(e)+'</div></td>'+
       '<td class="bl-date">'+(e.date&&e.date!=='-'?e.date+' '+e.time:'—')+'</td>'+
       '<td class="bl-sz r">'+e.size+'</td>';
     (function(entry){
-      tr.addEventListener('click',function(ev){if(ev.target.closest('.bl-cb-col'))return;if(entry.isDir||entry.isParent){window.location.href=entry.href;return;}ev.preventDefault();openPreview(entry,tr);});
+      tr.addEventListener('click',function(ev){if(ev.target.closest('.bl-cb-col')){ev.stopPropagation();return;}if(entry.isDir||entry.isParent){window.location.href=entry.href;return;}ev.preventDefault();openPreview(entry,tr);});
       tr.querySelector('a').addEventListener('click',function(ev){if(!entry.isDir&&!entry.isParent)ev.preventDefault();});
     })(e);
     tbody.appendChild(tr);
@@ -960,9 +960,10 @@
       if(e.isDir){
         var dirPhIcon='<svg class="gc-art-ph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         card.className='gc gc-dir';
-        card.innerHTML='<div class="gc-art">'+dirPhIcon+'</div>'+
+        card.innerHTML='<input type="checkbox" class="gc-cb bl-cb" data-name="'+esc(e.name)+'"/>'+
+          '<div class="gc-art">'+dirPhIcon+'</div>'+
           '<div class="gc-info"><div class="gc-title" title="'+esc(e.name)+'">'+esc(e.name)+'</div></div>';
-        card.addEventListener('click',function(){window.location.href=e.href;});
+        card.addEventListener('click',function(ev){if(ev.target.classList.contains('gc-cb'))return;window.location.href=e.href;});
         gcMap[e.name]=card;
         gridEl.appendChild(card);
         return;
@@ -1127,9 +1128,9 @@
   }
   if(document.getElementById('zip-selall')){
     document.getElementById('zip-selall').addEventListener('click',function(){
-      // Select all visible files in both list and grid
+      // Select all visible entries (files + dirs) in both list and grid
       entries.forEach(function(e){
-        if(e.isDir||e.isParent) return;
+        if(e.isParent||e.isAsd) return;
         var tr=rowMap[e.name];
         if(tr&&tr.style.display==='none') return; // filtered out
         selectedFiles.add(e.name);
@@ -1148,11 +1149,30 @@
       var btn=this;
       btn.disabled=true;btn.textContent='Zipping…';
       var zip=new JSZip();
+      // Recursively list files in a directory by fetching its autoindex page
+      function listDir(href,prefix){
+        return fetch(href).then(function(r){return r.text();}).then(function(html){
+          var re=/<a href="([^"]+)">([^<]*)<\/a>\s+\S+\s+\S+\s+\S+/g,m2,files=[];
+          while((m2=re.exec(html))!==null){
+            var h=m2[1],n=decodeURIComponent(h.replace(/\/$/,'').split('/').pop());
+            if(h==='../') continue;
+            if(h.endsWith('/')) files.push({href:new URL(h,href).href,name:prefix+n+'/',isDir:true});
+            else files.push({href:new URL(h,href).href,name:prefix+n,isDir:false});
+          }
+          var subs=[];
+          files.forEach(function(f){
+            if(f.isDir) subs.push(listDir(f.href,f.name));
+            else subs.push(fetch(f.href).then(function(r){return r.arrayBuffer();}).then(function(buf){zip.file(f.name,buf);}));
+          });
+          return Promise.all(subs);
+        });
+      }
       // Auto-include matching .asd files for selected audio files
       var filesToZip=new Set(selectedFiles);
       selectedFiles.forEach(function(name){var a=asdMap[name];if(a)filesToZip.add(a.name);});
       var promises=Array.from(filesToZip).map(function(name){
         var e=entryMap[name];if(!e) return Promise.resolve();
+        if(e.isDir) return listDir(e.href,e.name+'/');
         return fetch(e.href).then(function(r){return r.arrayBuffer();}).then(function(buf){zip.file(name,buf);});
       });
       Promise.all(promises).then(function(){
