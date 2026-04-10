@@ -1446,7 +1446,8 @@
     function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch(e){return [];}}
     function save(key,arr){try{localStorage.setItem(key,JSON.stringify(arr.slice(0,MAX)));}catch(e){}}
     function add(key,item){
-      var arr=load(key).filter(function(r){return r.href!==item.href;});
+      var p=item.path||item.href;
+      var arr=load(key).filter(function(r){return r.href!==item.href&&(r.path||r.href)!==p;});
       arr.unshift(item);
       save(key,arr);
     }
@@ -1472,8 +1473,9 @@
     var FOLDER_SVG='<svg class="recent-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     var FILE_SVG='<svg class="recent-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V6L9 1z" stroke-linecap="round"/><path d="M9 1v5h5" stroke-linecap="round"/></svg>';
     function renderRecent(){
-      var dirs=load(KEY_DIRS).filter(function(r){return r.href!==curDir;});
-      var files=load(KEY_FILES);
+      var seenD={},seenF={};
+      var dirs=load(KEY_DIRS).filter(function(r){var p=r.path||r.href;if(p===curDir||seenD[p])return false;seenD[p]=1;return true;});
+      var files=load(KEY_FILES).filter(function(r){var p=r.path||r.href;if(seenF[p])return false;seenF[p]=1;return true;});
       var panel=document.getElementById('recent-panel');
       if(!panel||(!dirs.length&&!files.length)){if(panel)panel.style.display='none';return;}
       function renderCol(items,icon,key){
