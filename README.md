@@ -3,6 +3,7 @@
 A drop-in dark-themed directory listing UI for nginx's `autoindex` module. No server-side scripts — pure HTML/CSS/JS injected via `ngx_http_addition_module`.
 
 <img width="3360" height="1892" alt="image" src="https://github.com/user-attachments/assets/438c614f-24b0-459a-abc0-c1824c35764e" />
+<img width="3360" height="1892" alt="image" src="https://github.com/user-attachments/assets/70b80635-a5ee-4117-b282-e86f2c6a2798" />
 
 ## Features
 
