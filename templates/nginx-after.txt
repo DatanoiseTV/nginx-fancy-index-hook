@@ -14,10 +14,10 @@
     function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;}
     resize();window.addEventListener('resize',resize);
     var orbs=[
-      {x:W*.18,y:H*.15,vx:.18,vy:.13,r:.48,c:'79,142,247',a:.28},
-      {x:W*.82,y:H*.25,vx:-.13,vy:.17,r:.40,c:'124,58,237',a:.22},
-      {x:W*.5,y:H*.8,vx:.10,vy:-.20,r:.36,c:'45,212,175',a:.17},
-      {x:W*.48,y:H*.5,vx:-.16,vy:-.12,r:.27,c:'232,121,249',a:.14}
+      {x:W*.18,y:H*.15,vx:.18,vy:.13,r:.48,c:'255,255,255',a:.04},
+      {x:W*.82,y:H*.25,vx:-.13,vy:.17,r:.40,c:'200,200,200',a:.03},
+      {x:W*.5,y:H*.8,vx:.10,vy:-.20,r:.36,c:'180,180,180',a:.025},
+      {x:W*.48,y:H*.5,vx:-.16,vy:-.12,r:.27,c:'220,220,220',a:.02}
     ];
     var last=performance.now();
     function frame(now){
@@ -125,7 +125,7 @@
   function secCharsLabel(c){var f=[];if(c&0x20)f.push('code');if(c&0x40)f.push('data');if(c&0x80)f.push('bss');if(c&0x20000000)f.push('exec');if(c&0x40000000)f.push('read');if(c&0x80000000)f.push('write');return f.join(' ');}
 
   function renderPE(pe,name,size,href){
-    var secs=pe.sections.map(function(s){return'<tr><td style="font-family:var(--mono);color:var(--accent3)">'+esc(s.name)+'</td><td style="text-align:right">'+fmtBytes(s.vSize)+'</td><td style="color:var(--muted);font-size:.7rem">'+secCharsLabel(s.chars)+'</td></tr>';}).join('');
+    var secs=pe.sections.map(function(s){return'<tr><td style="font-family:var(--mono);color:#888">'+esc(s.name)+'</td><td style="text-align:right">'+fmtBytes(s.vSize)+'</td><td style="color:var(--muted);font-size:.7rem">'+secCharsLabel(s.chars)+'</td></tr>';}).join('');
     var strs=pe.strings.slice(0,20).map(function(s){return'<div class="pe-str">'+esc(s)+'</div>';}).join('');
     var ts=pe.timestamp?new Date(pe.timestamp*1000).toUTCString():'—';
     return'<div class="pe-wrap">'+
@@ -210,7 +210,7 @@
   function renderELF(elf,name,size,href){
     var secs=elf.sections.slice(0,24).map(function(s){
       var tc=elf.flags&4?'var(--accent3)':'var(--muted2)';
-      var nameColor=s.name==='.text'?'var(--accent)':s.name==='.data'?'#4ade80':s.name==='.bss'?'var(--muted)':s.name==='.rodata'?'var(--accent3)':'var(--muted2)';
+      var nameColor=s.name==='.text'?'var(--accent)':s.name==='.data'?'#999':s.name==='.bss'?'var(--muted)':s.name==='.rodata'?'var(--accent3)':'var(--muted2)';
       return'<tr><td style="font-family:var(--mono);color:'+nameColor+'">'+esc(s.name)+'</td>'+
         '<td style="color:var(--muted);font-size:.68rem">'+esc(ELF_SHTYPES[s.type]||'0x'+s.type.toString(16))+'</td>'+
         '<td style="font-family:var(--mono);color:var(--muted);font-size:.68rem">'+elfSecFlags(s.flags)+'</td>'+
@@ -279,7 +279,7 @@
 
   function renderIntelHex(ihex,name,href){
     var segRows=ihex.segs.map(function(s,i){
-      var colors=['var(--accent)','var(--accent2)','var(--accent3)','#f472b6','#fb923c'];
+      var colors=['var(--accent)','var(--accent2)','var(--accent3)','#999','#aaa'];
       var col=colors[i%colors.length];
       return'<div class="ihex-seg">'+
         '<div class="ihex-seg-bar" style="background:'+col+'"></div>'+
@@ -311,7 +311,7 @@
     var sampleName=name.replace(/\.asd$/i,'');
     return'<div class="pe-wrap">'+
       '<div class="pe-hero">'+
-      '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent3);flex-shrink:0"><path d="M9 19V6l12-3v13" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg>'+
+      '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#888;flex-shrink:0"><path d="M9 19V6l12-3v13" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg>'+
       '<div><div class="pe-hero-name">'+esc(name)+'</div>'+
       '<div class="pe-hero-sub">Ableton Live analysis data</div></div>'+
       '</div>'+
