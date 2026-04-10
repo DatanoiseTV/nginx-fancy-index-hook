@@ -901,14 +901,17 @@
         wrap.innerHTML='<div class="pdf-bar"><span class="pdf-info">'+esc(e.name)+' &nbsp;·&nbsp; '+pdf.numPages+' page'+(pdf.numPages!==1?'s':'')+'</span><a class="hx-dl" href="'+esc(e.href)+'" download>&#8595; Download</a></div><div class="pdf-pages" id="pdf-pages"></div>';
         setContent(wrap.outerHTML);
         var container=document.getElementById('pdf-pages');
-        var scale=1.5;
+        var hiDpi=window.devicePixelRatio||1;
+        var scale=2*hiDpi; // render at 2x native DPI for crisp zoom
         function renderPage(num){
           pdf.getPage(num).then(function(page){
             var vp=page.getViewport({scale:scale});
             var cvs=document.createElement('canvas');
             cvs.className='pdf-page';
             cvs.width=vp.width;cvs.height=vp.height;
-            cvs.style.width='100%';cvs.style.height='auto';
+            // CSS size = logical pixels (viewport at scale 2)
+            var lVp=page.getViewport({scale:2});
+            cvs.style.width=lVp.width+'px';cvs.style.maxWidth='100%';cvs.style.height='auto';
             container.appendChild(cvs);
             page.render({canvasContext:cvs.getContext('2d'),viewport:vp}).promise.then(function(){
               if(num<pdf.numPages) renderPage(num+1);
@@ -1436,6 +1439,71 @@
     if(!window.location.hash||window.location.hash==='#') closePreview();
     else openFromHash();
   });
+
+  // ── Recent files & folders (localStorage) ────────────────────
+  (function(){
+    var KEY_FILES='recentFiles',KEY_DIRS='recentDirs',MAX=5;
+    function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch(e){return [];}}
+    function save(key,arr){try{localStorage.setItem(key,JSON.stringify(arr.slice(0,MAX)));}catch(e){}}
+    function add(key,item){
+      var arr=load(key).filter(function(r){return r.href!==item.href;});
+      arr.unshift(item);
+      save(key,arr);
+    }
+    function remove(key,href){
+      save(key,load(key).filter(function(r){return r.href!==href;}));
+    }
+    // Record current directory
+    var curDir=location.pathname;
+    if(curDir&&curDir!=='/')add(KEY_DIRS,{name:curDir.replace(/\/$/,'').split('/').pop()||'root',href:curDir,path:curDir,ts:Date.now()});
+    // Hook into file preview to record opened files
+    var origOpen=window._openPreviewOrig;
+    // We'll record on click instead — attach to entry clicks
+    var recTbody=document.getElementById('bl-body');
+    if(recTbody)recTbody.addEventListener('click',function(ev){
+      var tr=ev.target.closest('tr');if(!tr)return;
+      var a=tr.querySelector('.bl-name a');if(!a)return;
+      var href=a.getAttribute('href');var name=a.textContent||a.getAttribute('title')||'';
+      if(!href||href==='../') return;
+      if(href.endsWith('/')) add(KEY_DIRS,{name:name,href:new URL(href,location.href).href,path:new URL(href,location.href).pathname,ts:Date.now()});
+      else add(KEY_FILES,{name:name,href:new URL(href,location.href).href,path:new URL(href,location.href).pathname,ts:Date.now()});
+    });
+    // Render panel
+    var FOLDER_SVG='<svg class="recent-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var FILE_SVG='<svg class="recent-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V6L9 1z" stroke-linecap="round"/><path d="M9 1v5h5" stroke-linecap="round"/></svg>';
+    function renderRecent(){
+      var dirs=load(KEY_DIRS).filter(function(r){return r.href!==curDir;});
+      var files=load(KEY_FILES);
+      var panel=document.getElementById('recent-panel');
+      if(!panel||(!dirs.length&&!files.length)){if(panel)panel.style.display='none';return;}
+      function renderCol(items,icon,key){
+        return items.slice(0,MAX).map(function(r){
+          var shortPath=r.path?r.path.replace(/\/$/,'').split('/').slice(0,-1).join('/'):'';
+          return'<a class="recent-item" href="'+esc(r.href)+'" title="'+esc(r.path||r.name)+'">'+
+            icon+
+            '<span class="recent-name">'+esc(r.name)+'</span>'+
+            (shortPath?'<span class="recent-path">'+esc(shortPath)+'</span>':'')+
+            '<button class="recent-x" data-key="'+key+'" data-href="'+esc(r.href)+'" title="Remove">&times;</button>'+
+          '</a>';
+        }).join('');
+      }
+      var html='<div class="recent-panel">';
+      if(dirs.length) html+='<div class="recent-col"><div class="recent-hdr">'+FOLDER_SVG+' Recent folders</div><div class="recent-list">'+renderCol(dirs,FOLDER_SVG,KEY_DIRS)+'</div></div>';
+      if(files.length) html+='<div class="recent-col"><div class="recent-hdr">'+FILE_SVG+' Recent files</div><div class="recent-list">'+renderCol(files,FILE_SVG,KEY_FILES)+'</div></div>';
+      html+='</div>';
+      panel.innerHTML=html;
+      panel.style.display='block';
+      // Remove buttons
+      panel.querySelectorAll('.recent-x').forEach(function(btn){
+        btn.addEventListener('click',function(ev){
+          ev.preventDefault();ev.stopPropagation();
+          remove(this.dataset.key,this.dataset.href);
+          renderRecent();
+        });
+      });
+    }
+    renderRecent();
+  })();
 
 })();
 </script>
