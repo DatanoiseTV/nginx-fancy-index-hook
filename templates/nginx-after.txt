@@ -62,8 +62,10 @@
   var fp=document.getElementById('bl-foot-path');
   if(fp) fp.textContent=path;
 
-  var BINARY=['efi','kpxe','pxe','lkrn','iso','img'];
+  var BINARY=['kpxe','pxe','lkrn','iso','img','bin'];
   var PE_EXT=['efi'];
+  var ELF_EXT=['elf','axf','so','ko'];
+  var HEX_EXT=['hex','ihex','ihx'];
   var AUDIO=['mp3','wav','ogg','flac','aac','m4a','opus'];
   var VIDEO=['mp4','webm','ogv','mov','mkv'];
   var IMAGE=['jpg','jpeg','png','gif','webp','svg','bmp','ico','avif','tiff','tif'];
@@ -145,6 +147,163 @@
     '</div>';
   }
 
+  // ── ELF parser ───────────────────────────────────────────────────
+  var ELF_MACHINES={3:'x86 (i386)',8:'MIPS',20:'PowerPC',21:'PowerPC 64-bit',40:'ARM',50:'IA-64',62:'x86-64 (AMD64)',83:'AVR',183:'AArch64 (ARM64)',243:'RISC-V',247:'eBPF'};
+  var ELF_ETYPES={0:'None',1:'Relocatable (.o)',2:'Executable',3:'Shared object (.so)',4:'Core dump'};
+  var ELF_OSABIS={0:'System V',1:'HP-UX',2:'NetBSD',3:'Linux',6:'Solaris',9:'FreeBSD',12:'OpenBSD'};
+  var ELF_SHTYPES={0:'NULL',1:'PROGBITS',2:'SYMTAB',3:'STRTAB',4:'RELA',5:'HASH',6:'DYNAMIC',7:'NOTE',8:'NOBITS',9:'REL',11:'DYNSYM',14:'INIT_ARRAY',15:'FINI_ARRAY'};
+
+  function parseELF(buf){
+    var dv=new DataView(buf),bytes=new Uint8Array(buf),r={ok:false};
+    if(buf.byteLength<64||bytes[0]!==0x7F||bytes[1]!==0x45||bytes[2]!==0x4C||bytes[3]!==0x46) return r;
+    var bits=bytes[4]===1?32:bytes[4]===2?64:0; if(!bits) return r;
+    var le=bytes[5]===1;
+    function u16(o){return le?dv.getUint16(o,true):dv.getUint16(o,false);}
+    function u32(o){return le?dv.getUint32(o,true):dv.getUint32(o,false);}
+    function u64(o){var lo=le?dv.getUint32(o,true):dv.getUint32(o+4,false),hi=le?dv.getUint32(o+4,true):dv.getUint32(o,false);return hi*0x100000000+lo;}
+    var osabi=bytes[7],etype=u16(16),machine=u16(18);
+    var entry,phoff,shoff,flags,phnum,shnum,shstrndx,shentsize;
+    if(bits===32){entry=u32(24);phoff=u32(28);shoff=u32(32);flags=u32(36);phnum=u16(44);shentsize=u16(46);shnum=u16(48);shstrndx=u16(50);}
+    else{entry=u64(24);phoff=u64(32);shoff=u64(40);flags=u32(48);phnum=u16(56);shentsize=u16(58);shnum=u16(60);shstrndx=u16(62);}
+    // String table for section names
+    var strtabOff=-1;
+    var shdrSz=bits===32?40:64;
+    if(shstrndx<shnum&&shoff>0&&shoff+(shstrndx+1)*shdrSz<=buf.byteLength){
+      var ssOff=shoff+shstrndx*shdrSz;
+      strtabOff=bits===32?u32(ssOff+16):u64(ssOff+24);
+    }
+    function readStr(idx){
+      if(strtabOff<0) return '';
+      var p=strtabOff+idx,e2=p;
+      while(e2<bytes.length&&bytes[e2]!==0)e2++;
+      try{return new TextDecoder().decode(bytes.slice(p,e2));}catch(e){return '';}
+    }
+    var sections=[];
+    if(shoff>0&&shnum>0){
+      for(var i=0;i<Math.min(shnum,64);i++){
+        var off=shoff+i*shdrSz;
+        if(off+shdrSz>buf.byteLength) break;
+        var stype=u32(off+4),sflags,saddr,ssize,snameOff=u32(off);
+        if(bits===32){sflags=u32(off+8);saddr=u32(off+12);ssize=u32(off+20);}
+        else{sflags=u64(off+8);saddr=u64(off+24);ssize=u64(off+32);}
+        if(stype===0&&ssize===0) continue; // skip NULL empty
+        sections.push({name:readStr(snameOff)||('section['+i+']'),type:stype,flags:sflags,addr:saddr,size:ssize});
+      }
+    }
+    // Embedded strings
+    var strs=[],run='',seen2={};
+    for(var k=0;k<Math.min(bytes.length,65536);k++){
+      var b=bytes[k];
+      if(b>=0x20&&b<0x7F){run+=String.fromCharCode(b);}
+      else{if(run.length>=7&&/[a-zA-Z]{3}/.test(run)&&!seen2[run]){seen2[run]=1;strs.push(run);}run='';}
+    }
+    var kw=['version','gcc','clang','llvm','gnu','linux','lib','main','init','.c','.cpp','Copyright','build'];
+    strs=strs.filter(function(s){var l=s.toLowerCase();return kw.some(function(k){return l.indexOf(k)!==-1;})||/\d+\.\d+\.\d+/.test(s);}).slice(0,30);
+    return{ok:true,bits:bits,le:le,osabi:osabi,osabiName:ELF_OSABIS[osabi]||'ABI '+osabi,etype:etype,etypeName:ELF_ETYPES[etype]||'Type 0x'+etype.toString(16),machine:machine,machineName:ELF_MACHINES[machine]||'Unknown (0x'+machine.toString(16)+')',entry:entry,flags:flags,phnum:phnum,shnum:shnum,sections:sections,strs:strs};
+  }
+
+  function elfSecFlags(f){var r='';if(f&1)r+='w';if(f&2)r+='a';if(f&4)r+='x';return r||'-';}
+
+  function fmtHex(n){return'0x'+n.toString(16);}
+
+  function renderELF(elf,name,size,href){
+    var secs=elf.sections.slice(0,24).map(function(s){
+      var tc=elf.flags&4?'var(--accent3)':'var(--muted2)';
+      var nameColor=s.name==='.text'?'var(--accent)':s.name==='.data'?'#4ade80':s.name==='.bss'?'var(--muted)':s.name==='.rodata'?'var(--accent3)':'var(--muted2)';
+      return'<tr><td style="font-family:var(--mono);color:'+nameColor+'">'+esc(s.name)+'</td>'+
+        '<td style="color:var(--muted);font-size:.68rem">'+esc(ELF_SHTYPES[s.type]||'0x'+s.type.toString(16))+'</td>'+
+        '<td style="font-family:var(--mono);color:var(--muted);font-size:.68rem">'+elfSecFlags(s.flags)+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono);font-size:.7rem">'+fmtBytes(s.size)+'</td>'+
+        '<td style="font-family:var(--mono);font-size:.68rem;color:rgba(79,142,247,.6)">'+fmtHex(s.addr)+'</td></tr>';
+    }).join('');
+    var strsHtml=elf.strs.slice(0,20).map(function(s){return'<div class="pe-str">'+esc(s)+'</div>';}).join('');
+    var elfIcon='<svg style="width:36px;height:36px;opacity:.45" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="2"/><path d="M4 5h8M4 8h5M4 11h7" stroke-linecap="round"/></svg>';
+    return'<div class="pe-wrap">'+
+      '<div class="pe-hero">'+elfIcon+'<div><div class="pe-hero-name">'+esc(name)+'</div><div class="pe-hero-sub">'+esc(elf.etypeName)+'</div></div></div>'+
+      '<div class="pe-grid">'+
+        '<div class="pe-kv"><span class="pe-k">Architecture</span><span class="pe-v">'+esc(elf.machineName)+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Format</span><span class="pe-v">ELF'+elf.bits+' / '+(elf.le?'Little':'Big')+'-endian</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">OS / ABI</span><span class="pe-v">'+esc(elf.osabiName)+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">File Size</span><span class="pe-v">'+esc(size)+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Entry Point</span><span class="pe-v" style="font-family:var(--mono);font-size:.75rem">'+fmtHex(elf.entry)+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Sections / Segments</span><span class="pe-v">'+elf.shnum+' / '+elf.phnum+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Flags</span><span class="pe-v" style="font-family:var(--mono);font-size:.75rem">'+fmtHex(elf.flags)+'</span></div>'+
+      '</div>'+
+      (secs?'<div class="pe-section-hdr">Sections</div><table class="pe-sec-tbl"><thead><tr><th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem 1.25rem;text-transform:uppercase;letter-spacing:.08em">Name</th><th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Type</th><th style="font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Flags</th><th style="text-align:right;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Size</th><th style="font-size:.6rem;color:var(--muted);padding:.3rem 1.25rem .3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Address</th></tr></thead><tbody>'+secs+'</tbody></table>':'')+
+      (strsHtml?'<div class="pe-section-hdr">Embedded Strings</div><div class="pe-strings">'+strsHtml+'</div>':'')+
+      '<a class="bin-dl" href="'+esc(href)+'" style="margin:1rem 1.25rem 1.25rem;display:inline-flex">&#8595; Download</a>'+
+    '</div>';
+  }
+
+  // ── Intel HEX parser ──────────────────────────────────────────────
+  function parseIntelHex(text){
+    var lines=text.split('\n'),records=0,dataBytes=0,extBase=0,entry=null,errors=0;
+    var minAddr=0xFFFFFFFF,maxAddr=0,segs=[];
+    var curStart=null,curEnd=null;
+    for(var i=0;i<lines.length;i++){
+      var l=lines[i].trim();
+      if(!l) continue;
+      if(l[0]!==':'){errors++;continue;}
+      var bc=parseInt(l.slice(1,3),16);
+      var addr=parseInt(l.slice(3,7),16);
+      var rt=parseInt(l.slice(7,9),16);
+      var data=[];
+      for(var j=0;j<bc;j++) data.push(parseInt(l.slice(9+j*2,11+j*2),16));
+      // verify checksum
+      var sum=bc+(addr>>8)+(addr&0xFF)+rt;
+      for(var j=0;j<data.length;j++) sum+=data[j];
+      if(((~sum+1)&0xFF)!==parseInt(l.slice(9+bc*2,11+bc*2),16)) errors++;
+      if(rt===0){
+        var abs=extBase+addr;
+        dataBytes+=bc;records++;
+        if(abs<minAddr) minAddr=abs;
+        if(abs+bc>maxAddr) maxAddr=abs+bc;
+        if(curStart===null){curStart=abs;curEnd=abs+bc;}
+        else if(abs<=curEnd+64){curEnd=Math.max(curEnd,abs+bc);}
+        else{segs.push({start:curStart,end:curEnd});curStart=abs;curEnd=abs+bc;}
+      } else if(rt===1){
+        break;
+      } else if(rt===2){
+        extBase=((data[0]<<8)|data[1])<<4;
+      } else if(rt===4){
+        extBase=((data[0]<<8)|data[1])<<16;
+      } else if(rt===5||rt===3){
+        entry=((data[0]<<24)|(data[1]<<16)|(data[2]<<8)|data[3])>>>0;
+      }
+    }
+    if(curStart!==null) segs.push({start:curStart,end:curEnd});
+    if(records===0) return{ok:false};
+    return{ok:true,records:records,dataBytes:dataBytes,minAddr:minAddr,maxAddr:maxAddr,entry:entry,segs:segs,errors:errors};
+  }
+
+  function renderIntelHex(ihex,name,href){
+    var segRows=ihex.segs.map(function(s,i){
+      var colors=['var(--accent)','var(--accent2)','var(--accent3)','#f472b6','#fb923c'];
+      var col=colors[i%colors.length];
+      return'<div class="ihex-seg">'+
+        '<div class="ihex-seg-bar" style="background:'+col+'"></div>'+
+        '<span style="font-family:var(--mono);font-size:.72rem;color:var(--muted2)">'+fmtHex(s.start)+'</span>'+
+        '<span style="color:var(--muted);font-size:.68rem;margin:0 .3rem">→</span>'+
+        '<span style="font-family:var(--mono);font-size:.72rem;color:var(--muted2)">'+fmtHex(s.end)+'</span>'+
+        '<span style="font-size:.68rem;color:var(--muted);margin-left:.5rem">'+fmtBytes(s.end-s.start)+'</span>'+
+      '</div>';
+    }).join('');
+    var hexIcon='<svg style="width:36px;height:36px;opacity:.45" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M4 8h2M10 8h2M7 6v4M9 6v4" stroke-linecap="round"/></svg>';
+    return'<div class="pe-wrap">'+
+      '<div class="pe-hero">'+hexIcon+'<div><div class="pe-hero-name">'+esc(name)+'</div><div class="pe-hero-sub">Intel HEX Firmware</div></div></div>'+
+      '<div class="pe-grid">'+
+        '<div class="pe-kv"><span class="pe-k">Address Range</span><span class="pe-v" style="font-family:var(--mono);font-size:.75rem">'+fmtHex(ihex.minAddr)+' – '+fmtHex(ihex.maxAddr)+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Data Size</span><span class="pe-v">'+fmtBytes(ihex.dataBytes)+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Records</span><span class="pe-v">'+ihex.records+'</span></div>'+
+        '<div class="pe-kv"><span class="pe-k">Memory Segments</span><span class="pe-v">'+ihex.segs.length+'</span></div>'+
+        (ihex.entry!==null?'<div class="pe-kv"><span class="pe-k">Entry Point</span><span class="pe-v" style="font-family:var(--mono);font-size:.75rem">'+fmtHex(ihex.entry)+'</span></div>':'')+
+        (ihex.errors?'<div class="pe-kv"><span class="pe-k">Checksum Errors</span><span class="pe-v" style="color:#f87171">'+ihex.errors+'</span></div>':'')+
+      '</div>'+
+      (segRows?'<div class="pe-section-hdr">Memory Segments</div><div class="ihex-segs">'+segRows+'</div>':'')+
+      '<a class="bin-dl" href="'+esc(href)+'" style="margin:1rem 1.25rem 1.25rem;display:inline-flex">&#8595; Download</a>'+
+    '</div>';
+  }
+
   // ── Parse listing ─────────────────────────────────────────────
   var entries=[],entryMap={};
   pre.innerHTML.split('\n').forEach(function(line){
@@ -159,8 +318,8 @@
 
   function badge(e){
     if(e.isParent)return'';if(e.isDir)return'<span class="bl-badge b-dir">dir</span>';
-    var x=ext(e.name),map={efi:'EFI',kpxe:'kPXE',pxe:'PXE',ipxe:'iPXE',lkrn:'LKRN',md:'MD',txt:'TXT',cfg:'CFG',mp3:'MP3',wav:'WAV',ogg:'OGG',flac:'FLAC',aac:'AAC',mp4:'MP4',webm:'WEBM',mov:'MOV',mkv:'MKV'};
-    var cls={efi:'b-efi',kpxe:'b-kpxe',pxe:'b-pxe',ipxe:'b-ipxe',lkrn:'b-lkrn',jpg:'b-img',jpeg:'b-img',png:'b-img',gif:'b-img',webp:'b-img',svg:'b-img',avif:'b-img'};
+    var x=ext(e.name),map={efi:'EFI',elf:'ELF',axf:'ELF',so:'ELF',ko:'ELF',hex:'iHEX',ihex:'iHEX',ihx:'iHEX',kpxe:'kPXE',pxe:'PXE',ipxe:'iPXE',lkrn:'LKRN',md:'MD',txt:'TXT',cfg:'CFG',mp3:'MP3',wav:'WAV',ogg:'OGG',flac:'FLAC',aac:'AAC',mp4:'MP4',webm:'WEBM',mov:'MOV',mkv:'MKV'};
+    var cls={efi:'b-efi',elf:'b-elf',axf:'b-elf',so:'b-elf',ko:'b-elf',hex:'b-hex',ihex:'b-hex',ihx:'b-hex',kpxe:'b-kpxe',pxe:'b-pxe',ipxe:'b-ipxe',lkrn:'b-lkrn',jpg:'b-img',jpeg:'b-img',png:'b-img',gif:'b-img',webp:'b-img',svg:'b-img',avif:'b-img'};
     var tb=map[x]?'<span class="bl-badge '+(cls[x]||'b-txt')+'">'+map[x]+'</span>':'';var bpm=AUDIO.includes(x)?bpmFromName(e.name):null;var bb=bpm?'<span class="bl-badge b-bpm">'+bpm+' BPM</span>':'';return tb+bb;
   }
   function icon(e){
@@ -619,6 +778,34 @@
         if(nextBtn) nextBtn.onclick=function(){if(idx<imgFiles.length-1){ci=idx+1;var ne=imgFiles[ci];if(activeRow)activeRow.classList.remove('active');activeRow=rowMap[ne.name]||null;if(activeRow)activeRow.classList.add('active');renderImg(ci);}};
       }
       renderImg(ci);
+      return;
+    }
+
+    if(ELF_EXT.includes(x)){
+      loading('Parsing ELF…');
+      fetch(e.href,{headers:{'Range':'bytes=0-524287'}}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer();})
+        .then(function(buf){
+          var elf=parseELF(buf);
+          setContent(elf.ok?renderELF(elf,e.name,e.size,e.href):
+            '<div class="bin-info"><div class="bin-name">'+esc(e.name)+'</div><div style="color:var(--muted);font-size:.8rem">Not a valid ELF file</div><a class="bin-dl" href="'+e.href+'">&#8595; Download</a></div>');
+        }).catch(function(err){setContent('<div style="padding:1.5rem;color:var(--muted);text-align:center;font-size:.8rem">'+esc(err.message)+'</div>');});
+      return;
+    }
+
+    if(HEX_EXT.includes(x)){
+      loading('Parsing Intel HEX…');
+      fetch(e.href).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
+        .then(function(text){
+          var firstLine=text.trim().split('\n')[0]||'';
+          if(firstLine[0]===':'){
+            var ihex=parseIntelHex(text);
+            setContent(ihex.ok?renderIntelHex(ihex,e.name,e.href):
+              '<div class="bin-info"><div class="bin-name">'+esc(e.name)+'</div><div style="color:var(--muted);font-size:.8rem">Could not parse Intel HEX</div><a class="bin-dl" href="'+e.href+'">&#8595; Download</a></div>');
+          } else {
+            // Generic text / Motorola SREC etc. — fall through to code view
+            setContent('<pre class="code-view">'+esc(text.slice(0,65536))+'</pre>');
+          }
+        }).catch(function(err){setContent('<div style="padding:1.5rem;color:var(--muted);text-align:center;font-size:.8rem">'+esc(err.message)+'</div>');});
       return;
     }
 

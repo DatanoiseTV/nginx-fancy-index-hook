@@ -165,6 +165,11 @@ audio::-webkit-media-controls-panel{background:rgba(255,255,255,.05)}
 .gi-cmeta{font-size:.65rem;color:var(--muted);white-space:nowrap;font-family:var(--mono);flex-shrink:0}
 a.gi-remote{color:var(--muted);text-decoration:none}
 a.gi-remote:hover{color:var(--accent);text-decoration:underline}
+.b-elf{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.25)}
+.b-hex{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+.ihex-segs{padding:.6rem 1.25rem .85rem;display:flex;flex-direction:column;gap:.45rem;border-bottom:1px solid var(--border)}
+.ihex-seg{display:flex;align-items:center;gap:.4rem}
+.ihex-seg-bar{width:10px;height:10px;border-radius:2px;flex-shrink:0}
 @media(max-width:500px){
   .bl-main{flex-direction:column}
   .bl-main.has-preview .bl-list-wrap{width:100%}
