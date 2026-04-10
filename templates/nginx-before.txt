@@ -176,6 +176,27 @@ a.gi-remote:hover{color:var(--accent);text-decoration:underline}
 .b-elf{background:rgba(255,255,255,.06);color:#999;border:1px solid rgba(255,255,255,.1)}
 .b-hex{background:rgba(255,255,255,.05);color:#888;border:1px solid rgba(255,255,255,.08)}
 .b-asd{background:rgba(255,255,255,.05);color:#888;border:1px solid rgba(255,255,255,.08)}
+/* PDF viewer */
+.pdf-wrap{display:flex;flex-direction:column;max-height:76vh;overflow:hidden}
+.pdf-bar{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0}
+.pdf-info{font-family:var(--mono);font-size:.68rem;color:var(--muted2)}
+.pdf-pages{overflow-y:auto;flex:1;padding:.5rem;display:flex;flex-direction:column;gap:.5rem;background:rgba(0,0,0,.15)}
+.pdf-page{border-radius:4px;box-shadow:0 1px 6px rgba(0,0,0,.3)}
+body.light .pdf-pages{background:rgba(0,0,0,.06)}
+/* Spreadsheet viewer */
+.sheet-wrap{display:flex;flex-direction:column;max-height:76vh;overflow:hidden}
+.sheet-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+.sheet-tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted2);padding:.45rem .85rem;font-size:.72rem;font-family:var(--mono);cursor:pointer;white-space:nowrap;transition:all .12s}
+.sheet-tab:hover{color:var(--text)}
+.sheet-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.sheet-page{display:none;overflow:auto;flex:1}
+.sheet-page.active{display:block}
+.sheet-scroll{overflow:auto;max-height:62vh}
+.sheet-scroll table{width:100%;border-collapse:collapse;font-size:.72rem;font-family:var(--mono)}
+.sheet-scroll td,.sheet-scroll th{padding:.3rem .6rem;border:1px solid var(--border);white-space:nowrap;max-width:250px;overflow:hidden;text-overflow:ellipsis}
+.sheet-scroll th{background:var(--surface2);color:var(--text);font-weight:600;font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;z-index:1}
+.sheet-scroll td{color:var(--muted2)}
+.sheet-scroll tr:hover td{background:var(--hover)}
 .ihex-segs{padding:.6rem 1.25rem .85rem;display:flex;flex-direction:column;gap:.45rem;border-bottom:1px solid var(--border)}
 .ihex-seg{display:flex;align-items:center;gap:.4rem}
 .ihex-seg-bar{width:10px;height:10px;border-radius:2px;flex-shrink:0}
