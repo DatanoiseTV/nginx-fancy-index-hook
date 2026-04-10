@@ -442,14 +442,62 @@ window.pdfjsLoaded=new Promise(function(ok,fail){
     var bpm=AUDIO.includes(x)?bpmFromName(e.name):null;var bb=bpm?'<span class="bl-badge b-bpm">'+bpm+' BPM</span>':'';return tb+bb;
   }
   function icon(e){
-    var c='currentColor',x=ext(e.name);
-    if(e.isParent||e.isDir)return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    if(BINARY.includes(x))return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M5 8h6M5 5.5h3" stroke-linecap="round"/><circle cx="11" cy="10.5" r=".8" fill="'+c+'" stroke="none"/></svg>';
-    if(x==='md')return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><path d="M9 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V6L9 1z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 1v5h5" stroke-linecap="round"/><path d="M5 10l1.5-2 1 1.5 1-2 1.5 2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    if(AUDIO.includes(x))return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><circle cx="10" cy="12" r="2"/><circle cx="4" cy="14" r="2"/><path d="M12 12V4l-8 2v8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    if(VIDEO.includes(x))return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><rect x="1" y="3" width="10" height="10" rx="1.5"/><path d="M11 6l4-2v8l-4-2V6z" stroke-linejoin="round"/></svg>';
-    if(IMAGE.includes(x))return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="2"/><circle cx="5.5" cy="5.5" r="1.2" fill="'+c+'" stroke="none"/><path d="M1 11l4-4 3 3 2-2 5 4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5"><path d="M9 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V6L9 1z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 1v5h5M5 9h6M5 11.5h4" stroke-linecap="round"/></svg>';
+    var c='currentColor',x=ext(e.name),s='stroke-linecap="round" stroke-linejoin="round"';
+    // base doc shape reused by many types
+    var doc='<path d="M9 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V6L9 1z" '+s+'/><path d="M9 1v5h5" stroke-linecap="round"/>';
+    function svg(inner){return'<svg class="bl-icon" viewBox="0 0 16 16" fill="none" stroke="'+c+'" stroke-width="1.5">'+inner+'</svg>';}
+    // Folder
+    if(e.isParent||e.isDir)return svg('<path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" '+s+'/>');
+    // Audio
+    if(AUDIO.includes(x))return svg('<circle cx="10" cy="12" r="2"/><circle cx="4" cy="14" r="2"/><path d="M12 12V4l-8 2v8" '+s+'/>');
+    // Video
+    if(VIDEO.includes(x))return svg('<rect x="1" y="3" width="10" height="10" rx="1.5"/><path d="M11 6l4-2v8l-4-2V6z" stroke-linejoin="round"/>');
+    // Image
+    if(IMAGE.includes(x))return svg('<rect x="1" y="1" width="14" height="14" rx="2"/><circle cx="5.5" cy="5.5" r="1.2" fill="'+c+'" stroke="none"/><path d="M1 11l4-4 3 3 2-2 5 4" '+s+'/>');
+    // PDF
+    if(x==='pdf')return svg(doc+'<path d="M5 9.5h2.5a1 1 0 000-2H5v4" stroke-linecap="round"/>');
+    // Spreadsheet
+    if(SHEET_EXT.includes(x))return svg('<rect x="2" y="2" width="12" height="12" rx="1.5"/><line x1="2" y1="5.5" x2="14" y2="5.5"/><line x1="2" y1="8.5" x2="14" y2="8.5"/><line x1="2" y1="11.5" x2="14" y2="11.5"/><line x1="6" y1="2" x2="6" y2="14"/>');
+    // Markdown
+    if(x==='md'||x==='mdx')return svg(doc+'<path d="M5 10l1.5-2 1 1.5 1-2 1.5 2.5" '+s+'/>');
+    // Binary / firmware
+    if(BINARY.includes(x)||ELF_EXT.includes(x))return svg('<rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M5 8h6M5 5.5h3" stroke-linecap="round"/><circle cx="11" cy="10.5" r=".8" fill="'+c+'" stroke="none"/>');
+    // Archive
+    if(['zip','tar','gz','bz2','xz','7z','rar','tgz','zst','lz4','cab','dmg','pkg'].includes(x))return svg('<rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M7 1v14M9 3h-2M9 5h-2M9 7h-2" stroke-linecap="round"/><rect x="6" y="9" width="4" height="3" rx=".5"/>');
+    // Code
+    if(['js','ts','jsx','tsx','py','rb','rs','go','c','cpp','h','hpp','java','kt','swift','cs','php','pl','lua','sh','bash','zsh','fish','ps1','r','scala','ex','exs','hs','elm','nim','zig','v','d','m','mm','f90','f95','asm','s','wasm'].includes(x))return svg('<path d="M5 5L2 8l3 3M11 5l3 3-3 3M9 3l-2 10" '+s+'/>');
+    // Config / data
+    if(['json','yaml','yml','toml','xml','ini','conf','cfg','env','properties','plist','reg'].includes(x))return svg('<circle cx="8" cy="5" r="1.5"/><path d="M8 6.5V9M5 11a3 3 0 016 0" '+s+'/>');
+    // Database
+    if(['db','sqlite','sqlite3','sql','mdb','accdb'].includes(x))return svg('<ellipse cx="8" cy="4" rx="5.5" ry="2.5"/><path d="M2.5 4v4c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V4" '+s+'/><path d="M2.5 8c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5"/>');
+    // Font
+    if(['ttf','otf','woff','woff2','eot'].includes(x))return svg(doc+'<text x="5" y="12" font-size="7" font-weight="700" fill="'+c+'" stroke="none" font-family="serif">A</text>');
+    // 3D / CAD
+    if(['stl','obj','fbx','gltf','glb','step','stp','iges','3mf','blend','dxf','dwg','scad'].includes(x))return svg('<path d="M8 1L2 4.5v7L8 15l6-3.5v-7L8 1z" '+s+'/><path d="M2 4.5L8 8l6-3.5M8 8v7"/>');
+    // Disk image / ISO
+    if(['iso','img','dmg','vhd','vhdx','vmdk','qcow2'].includes(x))return svg('<circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="8" r="2"/><circle cx="8" cy="8" r=".7" fill="'+c+'" stroke="none"/>');
+    // Certificate / key
+    if(['pem','crt','cer','key','csr','p12','pfx','jks'].includes(x))return svg('<circle cx="8" cy="6" r="3"/><path d="M8 9v4M6 11.5h4" stroke-linecap="round"/>');
+    // Docker / container
+    if(e.name==='Dockerfile'||e.name==='docker-compose.yml'||e.name==='docker-compose.yaml'||x==='dockerfile')return svg('<rect x="1" y="6" width="14" height="8" rx="1.5"/><rect x="3" y="3" width="2.5" height="3" rx=".3"/><rect x="6.75" y="3" width="2.5" height="3" rx=".3"/><rect x="10.5" y="3" width="2.5" height="3" rx=".3"/>');
+    // Git
+    if(e.name==='.gitignore'||e.name==='.gitmodules'||e.name==='.gitattributes')return svg('<circle cx="8" cy="8" r="2"/><circle cx="12" cy="4" r="1.5"/><circle cx="4" cy="12" r="1.5"/><path d="M9.5 6.5L11 5M6.5 9.5L5 11" stroke-linecap="round"/>');
+    // Lock files
+    if(e.name.endsWith('.lock')||e.name==='package-lock.json'||e.name==='yarn.lock')return svg('<rect x="4" y="7" width="8" height="7" rx="1.5"/><path d="M6 7V5a2 2 0 014 0v2" fill="none"/><circle cx="8" cy="10.5" r=".8" fill="'+c+'" stroke="none"/>');
+    // Makefile / build
+    if(e.name==='Makefile'||e.name==='CMakeLists.txt'||e.name==='Rakefile'||e.name==='Justfile'||x==='mk'||x==='cmake')return svg('<path d="M2 13l3-4 2 1.5 2.5-3.5L14 13z" '+s+'/><circle cx="11" cy="4.5" r="2"/>');
+    // Log
+    if(x==='log')return svg(doc+'<path d="M5 8h6M5 10h4M5 12h5" stroke-linecap="round" opacity=".5"/>');
+    // Hex / Intel HEX
+    if(HEX_EXT.includes(x))return svg(doc+'<text x="4" y="11.5" font-size="5.5" font-weight="700" fill="'+c+'" stroke="none" font-family="monospace">0x</text>');
+    // PE / EFI
+    if(PE_EXT.includes(x))return svg('<rect x="1" y="2" width="14" height="12" rx="1.5"/><path d="M5 8h6M5 5.5h3" stroke-linecap="round"/><circle cx="11" cy="10.5" r=".8" fill="'+c+'" stroke="none"/>');
+    // Text
+    if(['txt','text','rtf','nfo','diz'].includes(x))return svg(doc+'<path d="M5 9h6M5 11.5h4" stroke-linecap="round"/>');
+    // HTML / web
+    if(['html','htm','xhtml','css','scss','sass','less','svg'].includes(x))return svg('<path d="M3 2l1.5 12L8 15l3.5-1L13 2z" '+s+'/><path d="M5 5h6M5.5 8h5M6 11h4" stroke-linecap="round"/>');
+    // Default document
+    return svg(doc+'<path d="M5 9h6M5 11.5h4" stroke-linecap="round"/>');
   }
 
   var tbody=document.getElementById('bl-body');
