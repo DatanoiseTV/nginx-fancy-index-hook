@@ -148,7 +148,7 @@
   }
 
   // ── ELF parser ───────────────────────────────────────────────────
-  var ELF_MACHINES={3:'x86 (i386)',8:'MIPS',20:'PowerPC',21:'PowerPC 64-bit',40:'ARM',50:'IA-64',62:'x86-64 (AMD64)',83:'AVR',183:'AArch64 (ARM64)',243:'RISC-V',247:'eBPF'};
+  var ELF_MACHINES={2:'SPARC',3:'x86 (i386)',4:'Motorola 68000',7:'Intel 80860',8:'MIPS',10:'MIPS RS3000 LE',15:'HP PA-RISC',18:'SPARC 32+',20:'PowerPC',21:'PowerPC 64-bit',22:'IBM S/390',23:'Cell SPU',36:'NEC V800',37:'Fujitsu FR20',40:'ARM',41:'SuperH (SH)',42:'SPARC v9',43:'Tricore',44:'ARC',45:'H8/300',47:'H8S',53:'CRIS',62:'x86-64 (AMD64)',75:'VAX',83:'AVR',88:'Motorola M68HC12',92:'Fujitsu VPP500',94:'Xtensa (ESP8266/ESP32)',106:'Blackfin DSP',113:'MSP430',164:'Xtensa (LX6/LX7)',183:'AArch64 (ARM64)',189:'STM8',195:'TI C6000 DSP',197:'TI C2000 DSP',199:'TI C5500 DSP',220:'RISC-V (old)',224:'ARC v2',243:'RISC-V',244:'Lanai',247:'eBPF',252:'C-SKY',258:'LoongArch'};
   var ELF_ETYPES={0:'None',1:'Relocatable (.o)',2:'Executable',3:'Shared object (.so)',4:'Core dump'};
   var ELF_OSABIS={0:'System V',1:'HP-UX',2:'NetBSD',3:'Linux',6:'Solaris',9:'FreeBSD',12:'OpenBSD'};
   var ELF_SHTYPES={0:'NULL',1:'PROGBITS',2:'SYMTAB',3:'STRTAB',4:'RELA',5:'HASH',6:'DYNAMIC',7:'NOTE',8:'NOBITS',9:'REL',11:'DYNSYM',14:'INIT_ARRAY',15:'FINI_ARRAY'};
