@@ -2,6 +2,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><rect width='44' height='44' rx='10' fill='%230b0b0b'/><path d='M10 32L22 14L34 32' stroke='%23888' stroke-width='2' fill='none'/><path d='M15 32L22 21L29 32' stroke='%23555' stroke-width='2' fill='none'/></svg>">
+<script>try{if(localStorage.getItem('theme')==='light')document.body.classList.add('light');}catch(e){}</script>
 <style>
 :root{
   --bg:#0b0b0b;--surface:rgba(255,255,255,.025);--surface2:rgba(255,255,255,.05);
@@ -9,9 +10,14 @@
   --text:#c8c8c8;--muted:#383838;--muted2:#5a5a5a;--hover:rgba(255,255,255,.03);
   --mono:'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;
 }
+body.light{
+  --bg:#f2f2f2;--surface:rgba(0,0,0,.02);--surface2:rgba(0,0,0,.04);
+  --border:rgba(0,0,0,.08);--accent:#555;--accent2:#777;--accent3:#666;
+  --text:#1a1a1a;--muted:#ccc;--muted2:#888;--hover:rgba(0,0,0,.03);
+}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{min-height:100vh}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-x:hidden}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-x:hidden;transition:background .3s,color .3s}
 body>h1,body>hr,body>pre,body>br{display:none!important}
 
 
@@ -147,7 +153,8 @@ audio::-webkit-media-controls-panel{background:rgba(255,255,255,.05)}
 .gi-dot{width:3px;height:3px;border-radius:50%;background:var(--muted);opacity:.4;flex-shrink:0}
 
 /* highlight.js theme */
-.hljs{color:#a8b9cc}.hljs-comment,.hljs-quote{color:#4b5a6e;font-style:italic}.hljs-keyword,.hljs-selector-tag{color:#7c91f7}.hljs-number,.hljs-literal,.hljs-boolean{color:#888}.hljs-string,.hljs-template-literal,.hljs-template-string{color:#999}.hljs-type,.hljs-class .hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__{color:#888}.hljs-built_in{color:#06b6d4}.hljs-title,.hljs-section{color:#f8fafc;font-weight:700}.hljs-attr,.hljs-variable,.hljs-template-variable{color:#888}.hljs-punctuation,.hljs-symbol{color:#64748b}.hljs-regexp{color:#fb923c}.hljs-meta,.hljs-meta .hljs-keyword{color:#7dd3fc}.hljs-name,.hljs-selector-class{color:#999}.hljs-deletion{color:#f87171;background:rgba(248,113,113,.08)}.hljs-addition{color:#4ade80;background:rgba(74,222,128,.08)}.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:700}
+.hljs{color:#999}.hljs-comment,.hljs-quote{color:#4a4a4a;font-style:italic}.hljs-keyword,.hljs-selector-tag{color:#bbb}.hljs-number,.hljs-literal,.hljs-boolean{color:#aaa}.hljs-string,.hljs-template-literal,.hljs-template-string{color:#888}.hljs-type,.hljs-class .hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__{color:#bbb}.hljs-built_in{color:#999}.hljs-title,.hljs-section{color:#d0d0d0;font-weight:700}.hljs-attr,.hljs-variable,.hljs-template-variable{color:#999}.hljs-punctuation,.hljs-symbol{color:#555}.hljs-regexp{color:#aaa}.hljs-meta,.hljs-meta .hljs-keyword{color:#999}.hljs-name,.hljs-selector-class{color:#aaa}.hljs-deletion{color:#999;background:rgba(255,255,255,.04)}.hljs-addition{color:#aaa;background:rgba(255,255,255,.04)}.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:700}
+body.light .hljs{color:#555}body.light .hljs-comment,body.light .hljs-quote{color:#aaa}body.light .hljs-keyword,body.light .hljs-selector-tag{color:#333}body.light .hljs-number,body.light .hljs-literal,body.light .hljs-boolean{color:#444}body.light .hljs-string,body.light .hljs-template-literal{color:#666}body.light .hljs-title,body.light .hljs-section{color:#222}body.light .hljs-punctuation,body.light .hljs-symbol{color:#999}body.light .code-view{color:#555}body.light .bl-badge{background:rgba(0,0,0,.05);border-color:rgba(0,0,0,.1);color:#666}body.light .gi-branch{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08);color:#555}body.light .gi-sha,body.light .gi-csha{color:rgba(0,0,0,.4);background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}body.light .hx-addr{color:rgba(0,0,0,.25)}
 /* Back nav in git bar */
 .gi-back{display:inline-flex;align-items:center;justify-content:center;padding:.1rem .45rem;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted2);text-decoration:none;font-size:.85rem;transition:all .12s;flex-shrink:0;line-height:1.3}.gi-back:hover{color:var(--text);background:rgba(255,255,255,.1)}
 .gc.gc-dir{border-style:dashed;border-color:rgba(100,116,139,.25)}.gc.gc-dir .gc-art{background:linear-gradient(135deg,rgba(100,116,139,.08),rgba(71,85,105,.05))}.gc.gc-dir .gc-art-ph{opacity:.3}
@@ -204,6 +211,7 @@ a.gi-remote:hover{color:var(--accent);text-decoration:underline}
     <button class="view-btn" id="btn-grid" title="Grid view"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg></button>
     <button class="sel-btn" id="btn-select">Select</button>
     <input type="text" id="bl-search" placeholder="Filter…" autocomplete="off" spellcheck="false" style="margin-left:auto"/>
+    <button class="view-btn" id="btn-theme" title="Toggle light/dark"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke-linecap="round"/></svg></button>
   </div>
 
   <div id="git-info"></div>
