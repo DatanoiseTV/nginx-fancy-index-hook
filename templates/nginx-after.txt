@@ -391,9 +391,12 @@
       tr.querySelector('a').addEventListener('click',function(ev){if(!entry.isDir&&!entry.isParent)ev.preventDefault();});
     })(e);
     tbody.appendChild(tr);
-    if(!e.isParent&&!e.isDir){
-      fileCount++;rowMap[e.name]=tr;
-      if(e.name.toLowerCase()==='readme.md') readmeEntry=e;
+    if(!e.isParent){
+      rowMap[e.name]=tr;
+      if(!e.isDir){
+        fileCount++;
+        if(e.name.toLowerCase()==='readme.md') readmeEntry=e;
+      }
     }
   });
 
@@ -963,7 +966,23 @@
         card.innerHTML='<input type="checkbox" class="gc-cb bl-cb" data-name="'+esc(e.name)+'"/>'+
           '<div class="gc-art">'+dirPhIcon+'</div>'+
           '<div class="gc-info"><div class="gc-title" title="'+esc(e.name)+'">'+esc(e.name)+'</div></div>';
-        card.addEventListener('click',function(ev){if(ev.target.classList.contains('gc-cb'))return;window.location.href=e.href;});
+        (function(entry,c){
+          c.addEventListener('click',function(ev){
+            if(selectMode){
+              var cb=c.querySelector('.gc-cb');
+              if(ev.target!==cb){cb.checked=!cb.checked;}
+              if(cb.checked)selectedFiles.add(entry.name);else selectedFiles.delete(entry.name);
+              c.classList.toggle('gc-selected',cb.checked);
+              updateZipBar();return;
+            }
+            if(ev.target.classList.contains('gc-cb')){
+              if(ev.target.checked)selectedFiles.add(entry.name);else selectedFiles.delete(entry.name);
+              c.classList.toggle('gc-selected',ev.target.checked);
+              updateZipBar();return;
+            }
+            window.location.href=entry.href;
+          });
+        })(e,card);
         gcMap[e.name]=card;
         gridEl.appendChild(card);
         return;
@@ -1172,7 +1191,7 @@
       selectedFiles.forEach(function(name){var a=asdMap[name];if(a)filesToZip.add(a.name);});
       var promises=Array.from(filesToZip).map(function(name){
         var e=entryMap[name];if(!e) return Promise.resolve();
-        if(e.isDir) return listDir(e.href,e.name+'/');
+        if(e.isDir) return listDir(new URL(e.href,location.href).href,e.name+'/');
         return fetch(e.href).then(function(r){return r.arrayBuffer();}).then(function(buf){zip.file(name,buf);});
       });
       Promise.all(promises).then(function(){
