@@ -307,85 +307,89 @@
   }
 
   // ── Ableton ASD parser ────────────────────────────────────────
-  var ASD_WARP_MODES=['Beats','Tones','Texture','Re-Pitch','Complex','Complex Pro'];
+  // Ableton ASD: proprietary binary format (not XML/gzip).
+  // Ref: github.com/DBraun/AbletonParsing
   function parseASD(buf){
-    var bytes=new Uint8Array(buf),xmlText;
-    try{
-      if(bytes[0]===0x1f&&bytes[1]===0x8b){
-        xmlText=new TextDecoder().decode(pako.inflate(bytes));
-      } else {
-        xmlText=new TextDecoder().decode(bytes);
+    var bytes=new Uint8Array(buf),dv=new DataView(buf);
+    function findSeq(pat,from){
+      from=from||0;
+      outer:for(var i=from;i<=bytes.length-pat.length;i++){
+        for(var j=0;j<pat.length;j++) if(bytes[i+j]!==pat[j]) continue outer;
+        return i;
       }
-    }catch(e){return{ok:false,error:'Decompress: '+e.message};}
-    var doc;
-    try{doc=new DOMParser().parseFromString(xmlText,'text/xml');}catch(e){return{ok:false,error:'XML parse'};}
-    if(doc.querySelector('parsererror'))return{ok:false,error:'XML invalid'};
-    var root=doc.documentElement;
-    if(root.tagName!=='Ableton')return{ok:false,error:'Not an Ableton file'};
-    function val(sel){var el=doc.querySelector(sel);return el?el.getAttribute('Value'):null;}
-    var sampleName=val('SampleRef FileRef Name')||'';
-    var defaultDuration=parseFloat(val('SampleRef DefaultDuration'))||0;
-    var sampleRate=parseFloat(val('SampleRef DefaultSampleRate'))||44100;
-    var durationSec=sampleRate>0?defaultDuration/sampleRate:0;
-    var isWarped=val('IsWarped')==='true';
-    var warpMode=parseInt(val('WarpMode'))||0;
-    var loopOn=val('Loop LoopOn')==='true';
-    var numerator=val('TimeSignature TimeSignatures AutomationEvent Numerator')||'4';
-    var denominator=val('TimeSignature TimeSignatures AutomationEvent Denominator')||'4';
-    var markers=[];
-    doc.querySelectorAll('WarpMarkers WarpMarker').forEach(function(m){
-      markers.push({id:parseInt(m.getAttribute('Id')||'0'),sec:parseFloat(m.getAttribute('SecTime')||'0'),beat:parseFloat(m.getAttribute('BeatTime')||'0')});
-    });
-    var bpm=null;
-    if(markers.length>=2){
-      var m0=markers[0],m1=markers[markers.length-1];
-      if(m1.sec>m0.sec) bpm=Math.round(((m1.beat-m0.beat)/(m1.sec-m0.sec))*6000)/100;
+      return -1;
     }
-    // Onsets count
-    var userOnsets=doc.querySelectorAll('Onsets UserOnsets OnsetList AutomationEvent').length||0;
-    return{ok:true,creator:root.getAttribute('Creator')||'Ableton Live',
-      sampleName:sampleName,durationSec:durationSec,sampleRate:sampleRate,
-      isWarped:isWarped,warpMode:warpMode,warpModeName:ASD_WARP_MODES[warpMode]||'Unknown',
-      loopOn:loopOn,timeSig:numerator+'/'+denominator,bpm:bpm,
-      markers:markers,userOnsets:userOnsets};
+    function enc(s){var a=[];for(var i=0;i<s.length;i++)a.push(s.charCodeAt(i));return a;}
+    var B_SOVL=enc('SampleOverViewLevel'),B_SD=enc('SampleData'),B_WM=enc('WarpMarker');
+    var dataIdx,version;
+    var i1=findSeq(B_SOVL,0);
+    if(i1>=0){var i2=findSeq(B_SOVL,i1+1);if(i2>=0){dataIdx=i2+90;version='Live 10+';}}
+    if(dataIdx===undefined){
+      i1=findSeq(B_SD,0);
+      if(i1>=0){var i2b=findSeq(B_SD,i1+1);if(i2b>=0){dataIdx=i2b+2712;version='Live 9';}}
+    }
+    if(dataIdx===undefined||dataIdx+52>buf.byteLength) return{ok:false,error:'Unrecognized ASD format'};
+    try{
+      var idx=dataIdx;
+      var loop_start=dv.getFloat64(idx,true);idx+=8;
+      var loop_end=dv.getFloat64(idx,true);idx+=8;
+      var sample_offset=dv.getFloat64(idx,true);idx+=8;
+      idx+=8+8; // hidden_loop_start, hidden_loop_end
+      var end_marker=dv.getFloat64(idx,true);idx+=8;
+      idx+=3;
+      var warp_on=bytes[idx]!==0;
+      var start_marker=loop_start+sample_offset;
+      // Warp markers
+      var markers=[],wmPos=findSeq(B_WM,0);
+      while(wmPos>=0){
+        var nxt=findSeq(B_WM,wmPos+1);
+        if(nxt<0) break;
+        var di=nxt+14;
+        if(di+16>buf.byteLength) break;
+        var sec=dv.getFloat64(di,true),beat=dv.getFloat64(di+8,true);
+        if(isFinite(sec)&&isFinite(beat)&&sec>=0&&Math.abs(beat)<1e9) markers.push({sec:sec,beat:beat});
+        wmPos=nxt+30;
+      }
+      var bpm=null;
+      if(markers.length>=2){
+        var m0=markers[0],mN=markers[markers.length-1];
+        if(mN.sec>m0.sec) bpm=Math.round(((mN.beat-m0.beat)/(mN.sec-m0.sec))*6000)/100;
+      }
+      return{ok:true,version:version,warp_on:warp_on,loop_start:loop_start,loop_end:loop_end,
+        start_marker:start_marker,end_marker:end_marker,markers:markers,bpm:bpm};
+    }catch(e){return{ok:false,error:e.message};}
   }
-  function fmtDur(sec){if(!sec||sec<=0)return'—';var m=Math.floor(sec/60),s=(sec%60).toFixed(2);return m+':'+(s<10?'0':'')+s;}
   function renderASD(asd,name,href){
+    var dname=esc(name.replace(/\.asd$/i,''));
     var rows=[
-      ['Sample',esc(asd.sampleName||name.replace(/\.asd$/i,''))],
-      ['Duration',esc(fmtDur(asd.durationSec))],
-      ['Sample Rate',asd.sampleRate?asd.sampleRate+' Hz':'—'],
+      ['Sample file',dname],
       ['BPM',asd.bpm!=null?'<span style="color:var(--accent3);font-weight:700">'+asd.bpm.toFixed(2)+'</span>':'—'],
-      ['Time Sig',esc(asd.timeSig)],
-      ['Warped',asd.isWarped?'Yes &nbsp;<span style="color:var(--muted);font-size:.72rem">('+esc(asd.warpModeName)+')</span>':'No'],
-      ['Loop',asd.loopOn?'<span style="color:#4ade80">On</span>':'Off'],
-      ['Warp Markers',asd.markers.length],
-      ['Creator',esc(asd.creator)],
+      ['Warped',asd.warp_on?'<span style="color:#4ade80">Yes</span>':'No'],
+      ['Loop start',isFinite(asd.loop_start)?asd.loop_start.toFixed(4)+' <span style="color:var(--muted);font-size:.68rem">beat</span>':'—'],
+      ['Loop end',isFinite(asd.loop_end)?asd.loop_end.toFixed(4)+' <span style="color:var(--muted);font-size:.68rem">beat</span>':'—'],
+      ['Warp markers',asd.markers.length],
+      ['Format',esc(asd.version||'Unknown')],
     ];
     var kvHtml=rows.map(function(r){return'<div class="pe-kv"><div class="pe-k">'+r[0]+'</div><div class="pe-v">'+r[1]+'</div></div>';}).join('');
-    var markerRows='';
-    if(asd.markers.length>0){
-      markerRows=asd.markers.slice(0,48).map(function(m,i){
-        var isTrans=i>0&&i<asd.markers.length-1;
-        return'<tr>'+
-          '<td style="font-family:var(--mono);font-size:.68rem;color:var(--muted);padding:.35rem 1.25rem">'+m.id+'</td>'+
-          '<td style="font-family:var(--mono);font-size:.7rem;color:var(--text);padding:.35rem .5rem">'+m.sec.toFixed(4)+'<span style="color:var(--muted);font-size:.62rem">s</span></td>'+
-          '<td style="font-family:var(--mono);font-size:.7rem;color:var(--accent3);padding:.35rem .5rem">'+m.beat.toFixed(3)+'<span style="color:var(--muted);font-size:.62rem"> beat</span></td>'+
-          '</tr>';
-      }).join('');
-    }
+    var markerRows=asd.markers.slice(0,64).map(function(m,i){
+      return'<tr>'+
+        '<td style="font-family:var(--mono);font-size:.68rem;color:var(--muted);padding:.35rem 1.25rem">'+(i+1)+'</td>'+
+        '<td style="font-family:var(--mono);font-size:.7rem;color:var(--text);padding:.35rem .5rem">'+m.sec.toFixed(4)+'<span style="color:var(--muted);font-size:.62rem">s</span></td>'+
+        '<td style="font-family:var(--mono);font-size:.7rem;color:var(--accent3);padding:.35rem .5rem">'+m.beat.toFixed(4)+'<span style="color:var(--muted);font-size:.62rem"> beat</span></td>'+
+        '</tr>';
+    }).join('');
     var markersSection=markerRows?
       '<div class="pe-section-hdr">Warp Markers</div>'+
       '<table class="pe-sec-tbl" style="width:100%"><thead><tr>'+
       '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem 1.25rem;text-transform:uppercase;letter-spacing:.08em">#</th>'+
-      '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Sec Time</th>'+
+      '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Sec</th>'+
       '<th style="text-align:left;font-size:.6rem;color:var(--muted);padding:.3rem .5rem;text-transform:uppercase;letter-spacing:.08em">Beat</th>'+
       '</tr></thead><tbody>'+markerRows+'</tbody></table>':'';
     return'<div class="pe-wrap">'+
       '<div class="pe-hero">'+
       '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent3);flex-shrink:0"><path d="M9 19V6l12-3v13" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg>'+
       '<div><div class="pe-hero-name">'+esc(name)+'</div>'+
-      '<div class="pe-hero-sub">Ableton Sample Data'+(asd.bpm!=null?' &nbsp;·&nbsp; <span style="color:var(--accent3)">'+asd.bpm.toFixed(2)+' BPM</span>':'')+(asd.isWarped?' &nbsp;·&nbsp; '+esc(asd.warpModeName):'')+'</div></div>'+
+      '<div class="pe-hero-sub">Ableton Sample Data'+(asd.bpm!=null?' &nbsp;·&nbsp; <span style="color:var(--accent3)">'+asd.bpm.toFixed(2)+' BPM</span>':'')+'</div></div>'+
       '</div>'+
       '<div class="pe-grid">'+kvHtml+'</div>'+
       markersSection+
