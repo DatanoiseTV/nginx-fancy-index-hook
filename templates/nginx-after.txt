@@ -1529,7 +1529,7 @@ window.pdfjsLoaded=new Promise(function(ok,fail){
       var href=a.getAttribute('href');var name=a.textContent||a.getAttribute('title')||'';
       if(!href||href==='../') return;
       if(href.endsWith('/')) add(KEY_DIRS,{name:name,href:new URL(href,location.href).href,path:new URL(href,location.href).pathname,ts:Date.now()});
-      else add(KEY_FILES,{name:name,href:new URL(href,location.href).href,path:new URL(href,location.href).pathname,ts:Date.now()});
+      else{var fileUrl=new URL(href,location.href);add(KEY_FILES,{name:name,href:fileUrl.pathname.replace(/\/[^/]+$/,'/')+'#'+encodeURIComponent(name),path:fileUrl.pathname,dir:fileUrl.pathname.replace(/\/[^/]+$/,'/'),ts:Date.now()});}
     });
     // Render panel
     var FOLDER_SVG='<svg class="recent-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12V6a1 1 0 011-1h4l1.5-2H14a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1542,7 +1542,7 @@ window.pdfjsLoaded=new Promise(function(ok,fail){
       if(!panel||(!dirs.length&&!files.length)){if(panel)panel.style.display='none';return;}
       function renderCol(items,icon,key){
         return items.slice(0,MAX).map(function(r){
-          var shortPath=r.path?r.path.replace(/\/$/,'').split('/').slice(0,-1).join('/'):'';
+          var shortPath=(r.dir||r.path||'').replace(/\/$/,'');
           return'<a class="recent-item" href="'+esc(r.href)+'" title="'+esc(r.path||r.name)+'">'+
             icon+
             '<span class="recent-name">'+esc(r.name)+'</span>'+
